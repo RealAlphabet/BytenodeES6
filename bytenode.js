@@ -1,3 +1,24 @@
+/**
+ *
+ *      ██████╗░██╗░░░██╗████████╗███████╗███╗░░██╗░█████╗░██████╗░███████╗  ███████╗░██████╗░█████╗░
+ *      ██╔══██╗╚██╗░██╔╝╚══██╔══╝██╔════╝████╗░██║██╔══██╗██╔══██╗██╔════╝  ██╔════╝██╔════╝██╔═══╝░
+ *      ██████╦╝░╚████╔╝░░░░██║░░░█████╗░░██╔██╗██║██║░░██║██║░░██║█████╗░░  █████╗░░╚█████╗░██████╗░
+ *      ██╔══██╗░░╚██╔╝░░░░░██║░░░██╔══╝░░██║╚████║██║░░██║██║░░██║██╔══╝░░  ██╔══╝░░░╚═══██╗██╔══██╗
+ *      ██████╦╝░░░██║░░░░░░██║░░░███████╗██║░╚███║╚█████╔╝██████╔╝███████╗  ███████╗██████╔╝╚█████╔╝
+ *      ╚═════╝░░░░╚═╝░░░░░░╚═╝░░░╚══════╝╚═╝░░╚══╝░╚════╝░╚═════╝░╚══════╝  ╚══════╝╚═════╝░░╚════╝░
+ *
+ *      @Author         RealAlphabet
+ *      @Description    A minimalist bytecode compiler for NodeJS ES6 Modules.
+ *      @Version        1.0.2
+ */
+
+//  ROLLUP
+
+const { rollup }    = require('rollup');
+const { terser }    = require('rollup-plugin-terser');
+
+//  BYTENODE
+
 const v8    = require('v8');
 const vm    = require('vm');
 const fs    = require('fs');
@@ -14,6 +35,20 @@ v8.setFlagsFromString('--no-lazy');                     // Thanks to @bytenode p
 
 Number.parseInt(process.versions.node, 10) >= 12
     && v8.setFlagsFromString('--no-flush-bytecode');    // Thanks to A-Parser (@a-parser)
+
+
+///////////////////////////////
+//  COMPILE
+///////////////////////////////
+
+
+function compileCode(code) {
+    return (new vm.SourceTextModule(code)).createCachedData();
+}
+
+function compileFile(file) {
+    return (new vm.SourceTextModule(fs.readFileSync(file, 'utf-8'))).createCachedData();
+}
 
 
 ///////////////////////////////
@@ -62,20 +97,6 @@ function generateSourceHash(bytecode) {
 
 
 ///////////////////////////////
-//  COMPILE
-///////////////////////////////
-
-
-function compileCode(code) {
-    return (new vm.SourceTextModule(code)).createCachedData();
-}
-
-function compileFile(file) {
-    return (new vm.SourceTextModule(fs.readFileSync(file, 'utf-8'))).createCachedData();
-}
-
-
-///////////////////////////////
 //  BYTENODE ES6
 ///////////////////////////////
 
@@ -100,9 +121,12 @@ async function linker(specifier, reference) {
             this.setExport(k, v);
     }
 
-    // Require CJS module and wrap it.
-    let obj     = require(specifier);
-    let module  = new vm.SyntheticModule([ 'default', ...Object.keys(obj) ], loader, {
+    // Require CommonJS module.
+    let obj     = require.main.require(specifier);
+    let keys    = [ 'default', ...Object.keys(obj) ];
+
+    // Wrap a Synthetic Module.
+    let module  = new vm.SyntheticModule(keys, loader, {
         context: reference.context,
     });
 
@@ -137,9 +161,27 @@ async function runByteCode(param, context) {
 
 
 ///////////////////////////////
-//  REQUIRE
+//  SPECIALS
 ///////////////////////////////
 
+
+//  BUNDLER
+
+async function bundleAndCompile(file) {
+    let process = await rollup({
+        input   : file,
+        onwarn  : () => {}
+    });
+
+    let result = await process.generate({
+        format  : 'es',
+        plugins : [ terser() ]
+    });
+
+    return (compileCode(result.output[0].code));
+}
+
+//  INSTANTIATE
 
 async function instantiate(file) {
     return (await runByteCode(file)).namespace.default;
@@ -154,5 +196,6 @@ async function instantiate(file) {
 module.exports = {
     compileCode,
     compileFile,
+    bundleAndCompile,
     instantiate
 };
