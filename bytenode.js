@@ -58,23 +58,23 @@ function compileFile(file) {
 
 //  BYTECODE
 
-function fixByteCode(byteCode) {
+function fixBytecode(bytecode) {
     let version         = process.version.substring(1, 3);
     let dummyBytecode   = compileCode('"ಠ_ಠ"');
 
     if (['8.8', '8.9'].includes(version)) {
-        dummyBytecode.slice(16, 20).copy(byteCode, 16);
-        dummyBytecode.slice(20, 24).copy(byteCode, 20);
+        dummyBytecode.slice(16, 20).copy(bytecode, 16);
+        dummyBytecode.slice(20, 24).copy(bytecode, 20);
 
     } else if (['12', '13', '14', '15', '16'].includes(version)) {
-        dummyBytecode.slice(12, 16).copy(byteCode, 12);
+        dummyBytecode.slice(12, 16).copy(bytecode, 12);
 
     } else {
-        dummyBytecode.slice(12, 16).copy(byteCode, 12);
-        dummyBytecode.slice(16, 20).copy(byteCode, 16);
+        dummyBytecode.slice(12, 16).copy(bytecode, 12);
+        dummyBytecode.slice(16, 20).copy(bytecode, 16);
     }
 
-    return (byteCode);
+    return (bytecode);
 }
 
 //  SOURCE
@@ -101,7 +101,7 @@ function generateSourceHash(bytecode) {
 ///////////////////////////////
 
 
-//  LINK
+//  LINKER
 
 async function linker(specifier, reference) {
 
@@ -110,7 +110,7 @@ async function linker(specifier, reference) {
     if (specifier.endsWith('.jsc'))
         return (runByteCode(specifier, reference.context));
 
-    //  COMMON JS
+    //  COMMONJS
 
     function loader() {
         // Set default export.
@@ -125,7 +125,7 @@ async function linker(specifier, reference) {
     let obj     = require.main.require(specifier);
     let keys    = [ 'default', ...Object.keys(obj) ];
 
-    // Wrap a Synthetic Module.
+    // Wrap Synthetic Module.
     let module  = new vm.SyntheticModule(keys, loader, {
         context: reference.context,
     });
@@ -133,7 +133,7 @@ async function linker(specifier, reference) {
     return (module);
 }
 
-//  RUN
+//  RUNNER
 
 async function runByteCode(param, context) {
     // Read bytecode from file.
@@ -141,7 +141,7 @@ async function runByteCode(param, context) {
         param = fs.readFileSync(param);
 
     // Fix bytecode.
-    let byteCode = fixByteCode(param);
+    let byteCode = fixBytecode(param);
 
     // Module from bytecode.
     let module = new vm.SourceTextModule(generateSourceHash(byteCode), {
@@ -168,20 +168,23 @@ async function runByteCode(param, context) {
 //  BUNDLER
 
 async function bundleAndCompile(file) {
+    // Setup rollup with source file.
     let process = await rollup({
         input   : file,
         onwarn  : () => {}
     });
 
+    // Generate bundle.
     let result = await process.generate({
         format  : 'es',
         plugins : [ terser() ]
     });
 
+    // Compile bundle to bytecode.
     return (compileCode(result.output[0].code));
 }
 
-//  INSTANTIATE
+//  INSTANCER
 
 async function instantiate(file) {
     return (await runByteCode(file)).namespace.default;
