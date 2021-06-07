@@ -106,7 +106,7 @@ function compileFile(file) {
 
 
 ///////////////////////////////
-//  BYTE NODE ES6
+//  BYTENODE ES6
 ///////////////////////////////
 
 

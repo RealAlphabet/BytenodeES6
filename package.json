@@ -1,6 +1,6 @@
 {
 	"name": "bytenode-es6",
+	"description": "A minimalist bytecode compiler for NodeJS ES6 Modules.",
 	"version": "1.0.0",
-	"description": "",
 	"main": "bytenode.js"
 }
