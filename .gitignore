@@ -1,0 +1,11 @@
+# Ignore files
+*
+
+# Except NodeJS files
+!package.json
+!bytenode.js
+
+# Except Git files
+!.gitignore
+!LICENSE
+!README.md
