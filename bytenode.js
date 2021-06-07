@@ -12,8 +12,8 @@ const fs    = require('fs');
 v8.setFlagsFromString('--no-lazy');                     // Thanks to @bytenode project
                                                         // Make the v8 engine compile the full source code.
 
-if (Number.parseInt(process.versions.node, 10) >= 12)
-    v8.setFlagsFromString('--no-flush-bytecode');       // Thanks to A-Parser (@a-parser)
+Number.parseInt(process.versions.node, 10) >= 12
+    && v8.setFlagsFromString('--no-flush-bytecode');    // Thanks to A-Parser (@a-parser)
 
 
 ///////////////////////////////
@@ -42,6 +42,8 @@ function fixByteCode(byteCode) {
     return (byteCode);
 }
 
+//  SOURCE
+
 function readSourceHash(bytecode) {
     let bytes   = bytecode.slice(8, 12);
     let length  = (bytes[3] << 24) | (bytes[2] << 16) | (bytes[1] << 8) | bytes[0];
@@ -50,44 +52,12 @@ function readSourceHash(bytecode) {
     return (length & ~(1 << 31));
 }
 
-//  SOURCE
-
-function generateDummyCode(bytecode) {
+function generateSourceHash(bytecode) {
     let length = readSourceHash(bytecode);
 
     return ((length > 1)
-        ? '"' + '\u200b'.repeat(length - 2) +'"'
+        ? '"' + '\u200b'.repeat(length - 2) + '"'
         : '');
-}
-
-
-///////////////////////////////
-//  LINKER
-///////////////////////////////
-
-
-async function linker(specifier, reference) {
-
-    // Instantiate Module from Bytecode.
-
-    if (specifier.endsWith('.jsc'))
-        return await runByteCode(specifier, reference.context);
-
-    // Synthetic Module from Common JS.
-
-    function loader() {
-        for (let [k, v] of Object.entries(obj))
-            this.setExport(k, v);
-    }
-
-    let obj     = require(specifier);
-    let module  = new vm.SyntheticModule(Object.keys(obj), loader, {
-        context: reference.context,
-    });
-
-    await module.link(linker);
-    await module.evaluate();
-    return (module);
 }
 
 
@@ -110,6 +80,37 @@ function compileFile(file) {
 ///////////////////////////////
 
 
+//  LINK
+
+async function linker(specifier, reference) {
+
+    //  BYTECODE
+
+    if (specifier.endsWith('.jsc'))
+        return (runByteCode(specifier, reference.context));
+
+    //  COMMON JS
+
+    function loader() {
+        // Set default export.
+        this.setExport('default', obj);
+
+        // Set root exports.
+        for (let [k, v] of Object.entries(obj))
+            this.setExport(k, v);
+    }
+
+    // Require CJS module and wrap it.
+    let obj     = require(specifier);
+    let module  = new vm.SyntheticModule([ 'default', ...Object.keys(obj) ], loader, {
+        context: reference.context,
+    });
+
+    return (module);
+}
+
+//  RUN
+
 async function runByteCode(param, context) {
     // Read bytecode from file.
     if (typeof param == 'string')
@@ -118,8 +119,8 @@ async function runByteCode(param, context) {
     // Fix bytecode.
     let byteCode = fixByteCode(param);
 
-    // Load module from bytecode.
-    let module      = new vm.SourceTextModule(generateDummyCode(byteCode), {
+    // Module from bytecode.
+    let module = new vm.SourceTextModule(generateSourceHash(byteCode), {
         cachedData: byteCode,
         context
     });
@@ -134,6 +135,12 @@ async function runByteCode(param, context) {
     return (module);
 }
 
+
+///////////////////////////////
+//  REQUIRE
+///////////////////////////////
+
+
 async function instantiate(file) {
     return (await runByteCode(file)).namespace.default;
 }
@@ -147,6 +154,5 @@ async function instantiate(file) {
 module.exports = {
     compileCode,
     compileFile,
-    runByteCode,
     instantiate
 };
